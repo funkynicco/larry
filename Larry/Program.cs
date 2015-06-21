@@ -13,6 +13,8 @@ namespace Larry
 
         static void SubMain(string[] args)
         {
+            Logger.Log(LogType.Normal, "Platform: " + Environment.OSVersion.Platform);
+
             using (var ms = new MemoryStream(1024))
             {
                 ms.Write(1337);
