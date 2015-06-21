@@ -110,8 +110,8 @@ namespace Larry
                 {
                     if (client.Connect(address, port))
                     {
-                        client.AddFileTransmission(FileTransmission.CreateFromFile("output\\myos.bin", "boot\\myos.bin"));
-                        client.AddFileTransmission(FileTransmission.CreateFromFile("grub.cfg", "boot\\grub\\grub.cfg"));
+                        client.AddFileTransmission(FileTransmission.CreateFromFile("output\\myos.bin", "isodir\\boot\\myos.bin")); // path is normalized in linux
+                        client.AddFileTransmission(FileTransmission.CreateFromFile("grub.cfg", "isodir\\boot\\grub\\grub.cfg"));
 
                         while (!client.IsFinished)
                         {

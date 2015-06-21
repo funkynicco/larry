@@ -32,6 +32,12 @@ namespace Larry.Network
         void OnStoreFile(UserClient client)
         {
             var remotePath = client.Buffer.ReadPrefixString();
+
+            if (Environment.OSVersion.Platform == PlatformID.Unix)
+                remotePath = remotePath.Replace('\\', '/');
+            else
+                remotePath = remotePath.Replace('/', '\\');
+
             var fileSize = client.Buffer.ReadInt64();
             var ticks = client.Buffer.ReadInt64();
             //Logger.Log(LogType.Debug, "Ticks: {0}", ticks);
