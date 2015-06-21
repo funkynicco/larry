@@ -1,0 +1,28 @@
+#!/bin/sh
+
+echo Building Larry ...
+dmcs -debug -unsafe \
+	Larry/Program.cs \
+	Larry/Extensions.cs \
+	Larry/Utilities.cs \
+	Larry/Logger.cs \
+	Larry/DirectoryChanger.cs \
+	Larry/BaseNetwork/DataValidationException.cs \
+	Larry/BaseNetwork/IClient.cs \
+	Larry/BaseNetwork/NetworkClientBase.cs \
+	Larry/BaseNetwork/NetworkPacket.cs \
+	Larry/BaseNetwork/NetworkServerBase.cs \
+	Larry/BaseNetwork/NetworkStandards.cs \
+	Larry/BaseNetwork/ReadPacketResult.cs \
+	Larry/File/FileTransmission.cs \
+	Larry/Network/BuildClient.cs \
+	Larry/Network/BuildClientPackets.cs \
+	Larry/Network/BuildServer.cs \
+	Larry/Network/BuildServerPackets.cs \
+	Larry/Network/PacketHeader.cs \
+	-out:larry.exe
+	
+chmod +x larry.exe
+
+echo All done.
+cd ..
