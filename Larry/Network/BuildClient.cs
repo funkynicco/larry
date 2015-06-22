@@ -13,6 +13,7 @@ namespace Larry.Network
         private readonly MemoryStream _buffer = new MemoryStream(1024);
 
         private FileTransmission _currentFileTransmission = null;
+        private FileTransmitDirection _currentTransmitDirection = FileTransmitDirection.None;
         private readonly Queue<FileTransmission> _fileTransmissionQueue = new Queue<FileTransmission>();
 
         private bool _buildCompletedAndReceived = false;
@@ -31,7 +32,7 @@ namespace Larry.Network
         private bool _isAuthorized = false;
         private int _nextSendPing = 0;
 
-        private byte[] _readFileBuffer = new byte[65536]; // 65536
+        private byte[] _fileTransmitBuffer = new byte[65536]; // 65536
 
         public BuildClient()
         {
@@ -74,6 +75,38 @@ namespace Larry.Network
         protected override void OnData(byte[] buffer, int length)
         {
             //Logger.Log(LogType.Debug, "Received {0} bytes", length);
+
+            if (_currentFileTransmission != null &&
+                _currentTransmitDirection == FileTransmitDirection.Receive)
+            {
+                // we're currently receiving a file
+                int toWrite = (int)Math.Min(length, _currentFileTransmission.Remaining);
+                _currentFileTransmission.Write(buffer, toWrite);
+
+                //Logger.Log(LogType.Debug, "Wrote {0} bytes - Remaining {1}", toWrite, userClient.FileTransmit.Remaining);
+
+                if (_currentFileTransmission.Remaining == 0)
+                {
+                    _currentFileTransmission.EndReceive();
+
+                    Logger.Log(LogType.Debug, "File complete: {0}", _currentFileTransmission.RemotePath);
+
+                    _currentFileTransmission.Dispose();
+                    _currentFileTransmission = null;
+                    _currentTransmitDirection = FileTransmitDirection.None;
+
+                    //CreatePacket(PacketHeader.TransmitComplete).Send(); // notify transmit completed
+
+                    if ((length - toWrite) > 0)
+                    {
+                        var newBuffer = new byte[length - toWrite];
+                        Buffer.BlockCopy(buffer, toWrite, newBuffer, 0, length - toWrite);
+                        OnData(newBuffer, newBuffer.Length); // read the remaining data
+                    }
+                }
+
+                return;
+            }
 
             _buffer.Position = _buffer.Length;
             _buffer.Write(buffer, 0, length);
@@ -156,15 +189,16 @@ namespace Larry.Network
                 }
 
                 // check queue
-                if (_currentFileTransmission != null)
+                if (_currentFileTransmission != null &&
+                    _currentTransmitDirection == FileTransmitDirection.Send)
                 {
                     if (_currentFileTransmission.IsTransmitting)
                     {
                         // send chunk...
-                        int toSend = (int)Math.Min(_currentFileTransmission.Remaining, _readFileBuffer.Length);
-                        _currentFileTransmission.Read(_readFileBuffer, toSend);
+                        int toSend = (int)Math.Min(_currentFileTransmission.Remaining, _fileTransmitBuffer.Length);
+                        _currentFileTransmission.Read(_fileTransmitBuffer, toSend);
 
-                        if (Send(_readFileBuffer, toSend) != toSend)
+                        if (Send(_fileTransmitBuffer, toSend) != toSend)
                             throw new Exception("Fatal - NetworkClientBase.Send returned less than requested to send");
                         //Logger.Log(LogType.Debug, "Sent {0} bytes - Remaining {1}", toSend, _currentFileTransmission.Remaining);
 
@@ -176,12 +210,14 @@ namespace Larry.Network
                             _currentFileTransmission.EndTransmit();
                             _currentFileTransmission.Dispose();
                             _currentFileTransmission = null;
+                            _currentTransmitDirection = FileTransmitDirection.None;
                         }
                     }
                 }
                 else if (_fileTransmissionQueue.Count > 0)
                 {
                     _currentFileTransmission = _fileTransmissionQueue.Dequeue();
+                    _currentTransmitDirection = FileTransmitDirection.Send;
 
                     /*Logger.Log(
                         LogType.Debug,

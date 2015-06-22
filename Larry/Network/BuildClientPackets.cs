@@ -1,4 +1,6 @@
-﻿using System;
+﻿using Larry.File;
+using System;
+using System.IO;
 
 namespace Larry.Network
 {
@@ -43,6 +45,15 @@ namespace Larry.Network
                 CreatePacket(PacketHeader.DoBuild)
                     .Send();
             }
+        }
+
+        [Packet(PacketHeader.BuildResultFile)]
+        void OnBuildResultFile()
+        {
+            long fileSize = _buffer.ReadInt64();
+
+            _currentTransmitDirection = FileTransmitDirection.Receive;
+            _currentFileTransmission = FileTransmission.BeginReceive("myos.iso", "myos.iso", DateTime.UtcNow, fileSize, Path.GetTempFileName());
         }
     }
 }

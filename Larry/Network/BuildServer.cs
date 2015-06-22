@@ -16,12 +16,14 @@ namespace Larry.Network
             public MemoryStream Buffer { get; private set; }
 
             public FileTransmission FileTransmit { get; set; }
+            public FileTransmitDirection CurrentTransmitDirection { get; set; }
 
             public UserClient(Client networkClient)
             {
                 NetworkClient = networkClient;
                 LastActivity = DateTime.UtcNow;
                 Buffer = new MemoryStream(1024);
+                CurrentTransmitDirection = FileTransmitDirection.None;
             }
 
             public void Dispose()
@@ -88,7 +90,8 @@ namespace Larry.Network
 
             userClient.LastActivity = DateTime.UtcNow;
 
-            if (userClient.FileTransmit != null)
+            if (userClient.FileTransmit != null &&
+                userClient.CurrentTransmitDirection == FileTransmitDirection.Receive)
             {
                 // we're currently receiving a file
                 int toWrite = (int)Math.Min(length, userClient.FileTransmit.Remaining);
@@ -104,6 +107,7 @@ namespace Larry.Network
 
                     userClient.FileTransmit.Dispose();
                     userClient.FileTransmit = null;
+                    userClient.CurrentTransmitDirection = FileTransmitDirection.None;
 
                     userClient.CreatePacket(PacketHeader.TransmitComplete).Send(); // notify transmit completed
 
@@ -210,6 +214,19 @@ namespace Larry.Network
 
                         client.Disconnect();
                     }
+                }
+            }
+
+            foreach (var client in Clients)
+            {
+                var userClient = client.Tag as UserClient;
+
+                if (userClient.FileTransmit != null &&
+                    userClient.CurrentTransmitDirection == FileTransmitDirection.Send &&
+                    userClient.FileTransmit.IsTransmitting)
+                {
+                    //userClient.FileTransmit.Write()
+                    //userClient.NetworkClient.Send()
                 }
             }
         }

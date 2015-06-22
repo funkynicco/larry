@@ -55,6 +55,7 @@
     <Compile Include="DirectoryChanger.cs" />
     <Compile Include="Extensions.cs" />
     <Compile Include="File\FileTransmission.cs" />
+    <Compile Include="File\FileTransmitDirection.cs" />
     <Compile Include="Logger.cs" />
     <Compile Include="Network\BuildClient.cs" />
     <Compile Include="Network\BuildClientPackets.cs" />

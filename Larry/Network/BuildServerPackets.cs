@@ -67,6 +67,7 @@ namespace Larry.Network
             }
 
             client.FileTransmit = FileTransmission.BeginReceive(localPath, remotePath, fileDateUtc, fileSize, Path.GetTempFileName());
+            client.CurrentTransmitDirection = FileTransmitDirection.Receive;
 
             Logger.Log(LogType.Debug, "Begin transmit {0} ({1} bytes)", remotePath, fileSize);
 
@@ -95,8 +96,23 @@ namespace Larry.Network
         [Packet(PacketHeader.DoBuild)]
         void OnDoBuild(UserClient client)
         {
+            if (System.IO.File.Exists("myos.iso"))
+                System.IO.File.Delete("myos.iso");
+
             var result = ReadProcessData("grub-mkrescue", "-o myos.iso isodir");
             Logger.Log(LogType.Debug, "\n" + result);
+
+            if (System.IO.File.Exists("myos.iso"))
+            {
+                client.FileTransmit = FileTransmission.CreateFromFile("myos.iso", "myos.iso");
+                client.CurrentTransmitDirection = FileTransmitDirection.Send;
+
+                client.CreatePacket(PacketHeader.BuildResultFile)
+                    .Write(client.FileTransmit.FileSize)
+                    .Send();
+
+                client.FileTransmit.BeginTransmit(); // TODO: make this..
+            }
         }
     }
 }

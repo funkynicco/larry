@@ -24,7 +24,8 @@ namespace Larry.Network
         /// The transmission was completed.
         /// </summary>
         TransmitComplete = 0x0004,
-        DoBuild = 0x0008
+        DoBuild = 0x0008,
+        BuildResultFile = 0x0010
     }
 
     [AttributeUsage(AttributeTargets.Method)]
