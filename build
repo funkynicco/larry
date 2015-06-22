@@ -15,6 +15,7 @@ dmcs -debug -unsafe \
 	Larry/BaseNetwork/NetworkStandards.cs \
 	Larry/BaseNetwork/ReadPacketResult.cs \
 	Larry/File/FileTransmission.cs \
+	Larry/File/FileTransmitDirection.cs \
 	Larry/Network/BuildClient.cs \
 	Larry/Network/BuildClientPackets.cs \
 	Larry/Network/BuildServer.cs \
