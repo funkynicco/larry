@@ -205,9 +205,10 @@ namespace Larry.Network
                         int toSend = (int)Math.Min(_currentFileTransmission.Remaining, _fileTransmitBuffer.Length);
                         _currentFileTransmission.Read(_fileTransmitBuffer, toSend);
 
-                        if (Send(_fileTransmitBuffer, toSend) != toSend)
-                            throw new Exception("Fatal - NetworkClientBase.Send returned less than requested to send");
-                        //Logger.Log(LogType.Debug, "Sent {0} bytes - Remaining {1}", toSend, _currentFileTransmission.Remaining);
+                        int numberOfBytesSent = Send(_fileTransmitBuffer, toSend);
+
+                        if (numberOfBytesSent != toSend)
+                            _currentFileTransmission.Rollback(toSend - numberOfBytesSent);
 
                         if (_currentFileTransmission.Remaining == 0)
                         {

@@ -235,8 +235,11 @@ namespace Larry.Network
                     var buffer = new byte[65536];
                     int toSend = (int)Math.Min(userClient.FileTransmit.Remaining, buffer.Length);
                     userClient.FileTransmit.Read(buffer, toSend);
-                    if (userClient.NetworkClient.Send(buffer, toSend) != toSend)
-                        throw new Exception("Fatal - NetworkClient.Send returned less than requested to send");
+
+                    int numberOfBytesSent = userClient.NetworkClient.Send(buffer, toSend);
+
+                    if (numberOfBytesSent != toSend)
+                        userClient.FileTransmit.Rollback(toSend - numberOfBytesSent);
 
                     if (userClient.FileTransmit.Remaining == 0)
                     {

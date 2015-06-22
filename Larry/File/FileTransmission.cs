@@ -69,6 +69,19 @@ namespace Larry.File
             _remainingData -= length;
         }
 
+        /// <summary>
+        /// Rollback a read or write by amount of bytes in order to cater send buffer overflows.
+        /// </summary>
+        /// <param name="length">Amount of bytes to rollback with</param>
+        public void Rollback(int length)
+        {
+            if (_stream.Position - length < 0)
+                throw new ArgumentOutOfRangeException("Cannot go beyond stream position.");
+
+            _remainingData += length;
+            _stream.Position -= length;
+        }
+
         public void BeginTransmit()
         {
             if (_stream != null)
