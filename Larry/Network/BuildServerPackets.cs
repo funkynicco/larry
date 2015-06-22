@@ -113,6 +113,13 @@ namespace Larry.Network
 
                 client.FileTransmit.BeginTransmit(); // TODO: make this..
             }
+            else
+            {
+                Logger.Log(LogType.Warning, "Failed to create iso");
+                client.CreatePacket(PacketHeader.BuildResultFile)
+                    .Write((long)0)
+                    .Send();
+            }
         }
     }
 }

@@ -225,8 +225,21 @@ namespace Larry.Network
                     userClient.CurrentTransmitDirection == FileTransmitDirection.Send &&
                     userClient.FileTransmit.IsTransmitting)
                 {
-                    //userClient.FileTransmit.Write()
-                    //userClient.NetworkClient.Send()
+                    var buffer = new byte[4096];
+                    int toSend = (int)Math.Min(userClient.FileTransmit.Remaining, buffer.Length);
+                    userClient.FileTransmit.Read(buffer, toSend);
+                    if (userClient.NetworkClient.Send(buffer, toSend) != toSend)
+                        throw new Exception("Fatal - NetworkClient.Send returned less than requested to send");
+
+                    if (userClient.FileTransmit.Remaining == 0)
+                    {
+                        Logger.Log(LogType.Debug, "Transmit completed of {0}", userClient.FileTransmit.RemotePath);
+
+                        userClient.FileTransmit.EndTransmit();
+                        userClient.FileTransmit.Dispose();
+                        userClient.FileTransmit = null;
+                        userClient.CurrentTransmitDirection = FileTransmitDirection.None;
+                    }
                 }
             }
         }
