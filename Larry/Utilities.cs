@@ -30,14 +30,20 @@ namespace Larry
 
             var prefix = (byte)stream.ReadByte();
             if (prefix != NetworkStandards.HeaderPrefix)
+            {
+                Logger.Log(LogType.Debug, "Invalid prefix: {0}", prefix.ToString("x2"));
                 return ReadPacketResult.InvalidHeader;
+            }
 
             header = stream.ReadInt16();
 
             dataSize = stream.ReadInt32();
             if (dataSize < 0 ||
                 dataSize > NetworkStandards.MaxPacketLength)
+            {
+                Logger.Log(LogType.Debug, "Data size invalid: {0}", dataSize);
                 return ReadPacketResult.DataSizeInvalid;
+            }
 
             if ((stream.Length - stream.Position) < dataSize)
             {

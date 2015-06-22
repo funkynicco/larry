@@ -52,6 +52,8 @@ namespace Larry.Network
         {
             long fileSize = _buffer.ReadInt64();
 
+            //Logger.Log(LogType.Debug, "OnBuildResultFile - {0} bytes", fileSize);
+
             _currentTransmitDirection = FileTransmitDirection.Receive;
             _currentFileTransmission = FileTransmission.BeginReceive("myos.iso", "myos.iso", DateTime.UtcNow, fileSize, Path.GetTempFileName());
         }

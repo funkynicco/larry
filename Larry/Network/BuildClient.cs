@@ -79,6 +79,13 @@ namespace Larry.Network
             if (_currentFileTransmission != null &&
                 _currentTransmitDirection == FileTransmitDirection.Receive)
             {
+                if (_buffer.Length > 0)
+                {
+                    OnData(_buffer.GetBuffer(), (int)_buffer.Length);
+                    _buffer.Position = 0;
+                    _buffer.SetLength(0);
+                }
+
                 // we're currently receiving a file
                 int toWrite = (int)Math.Min(length, _currentFileTransmission.Remaining);
                 _currentFileTransmission.Write(buffer, toWrite);

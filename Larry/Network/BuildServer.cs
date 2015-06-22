@@ -93,6 +93,13 @@ namespace Larry.Network
             if (userClient.FileTransmit != null &&
                 userClient.CurrentTransmitDirection == FileTransmitDirection.Receive)
             {
+                if (userClient.Buffer.Length > 0)
+                {
+                    OnClientData(client, userClient.Buffer.GetBuffer(), (int)userClient.Buffer.Length);
+                    userClient.Buffer.Position = 0;
+                    userClient.Buffer.SetLength(0);
+                }
+
                 // we're currently receiving a file
                 int toWrite = (int)Math.Min(length, userClient.FileTransmit.Remaining);
                 userClient.FileTransmit.Write(buffer, toWrite);
@@ -225,7 +232,7 @@ namespace Larry.Network
                     userClient.CurrentTransmitDirection == FileTransmitDirection.Send &&
                     userClient.FileTransmit.IsTransmitting)
                 {
-                    var buffer = new byte[4096];
+                    var buffer = new byte[65536];
                     int toSend = (int)Math.Min(userClient.FileTransmit.Remaining, buffer.Length);
                     userClient.FileTransmit.Read(buffer, toSend);
                     if (userClient.NetworkClient.Send(buffer, toSend) != toSend)
