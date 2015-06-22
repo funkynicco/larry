@@ -52,7 +52,10 @@ namespace Larry.Network
                 return;
             }
 
-            var localPath = Path.Combine(Environment.CurrentDirectory, remotePath.Replace("/", "\\"));
+            var localPath =
+                Environment.OSVersion.Platform == PlatformID.Unix ?
+                Path.Combine(Environment.CurrentDirectory, remotePath.Replace("\\", "/")) :
+                Path.Combine(Environment.CurrentDirectory, remotePath.Replace("/", "\\"));
 
             if (!localPath.ToLower().StartsWith(Environment.CurrentDirectory.ToLower()))
             {
