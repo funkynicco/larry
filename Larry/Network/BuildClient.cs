@@ -81,9 +81,10 @@ namespace Larry.Network
             {
                 if (_buffer.Length > 0)
                 {
-                    OnData(_buffer.GetBuffer(), (int)_buffer.Length);
+                    var len = _buffer.Length;
                     _buffer.Position = 0;
                     _buffer.SetLength(0);
+                    OnData(_buffer.GetBuffer(), (int)len);
                 }
 
                 // we're currently receiving a file
@@ -160,9 +161,17 @@ namespace Larry.Network
                 {
                     methodInfo.Invoke(this, new object[] { });
                 }
-                catch (DataValidationException ex)
+                catch (TargetInvocationException ex)
                 {
-                    Close(ex.Message);
+                    if (ex.InnerException is DataValidationException)
+                    {
+                        Close(ex.Message);
+                    }
+                    else if (ex.InnerException is FileTransmitBeginException)
+                    {
+                        OnData(new byte[] { }, 0);
+                        return;
+                    }
                 }
 
                 if (!IsConnected)

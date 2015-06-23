@@ -56,6 +56,8 @@ namespace Larry.Network
 
             _currentTransmitDirection = FileTransmitDirection.Receive;
             _currentFileTransmission = FileTransmission.BeginReceive("myos.iso", "myos.iso", DateTime.UtcNow, fileSize, Path.GetTempFileName());
+
+            throw new FileTransmitBeginException();
         }
     }
 }

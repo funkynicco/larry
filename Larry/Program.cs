@@ -13,17 +13,6 @@ namespace Larry
 
         static void SubMain(string[] args)
         {
-            Logger.Log(LogType.Normal, "Platform: " + Environment.OSVersion.Platform);
-
-            using (var ms = new MemoryStream(1024))
-            {
-                ms.Write(1337);
-                ms.Write(911);
-                ms.Position = 0;
-                Debug.Assert(ms.ReadInt32() == 1337);
-                Debug.Assert(ms.ReadInt32() == 911);
-            }
-
             using (var directoryChanger = new DirectoryChanger()) // DirectoryChanger automatically resets the working directory upon Dispose
             {
                 int port = 11929;
@@ -72,6 +61,8 @@ namespace Larry
                         }
                     }
                 }
+
+                Logger.Log(LogType.Normal, "Platform: " + Environment.OSVersion.Platform);
 
                 if (isServer)
                 {

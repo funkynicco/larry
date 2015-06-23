@@ -52,6 +52,7 @@
     <Compile Include="BaseNetwork\NetworkServerBase.cs" />
     <Compile Include="BaseNetwork\NetworkStandards.cs" />
     <Compile Include="BaseNetwork\ReadPacketResult.cs" />
+    <Compile Include="BaseNetwork\FileTransmitBeginException.cs" />
     <Compile Include="DirectoryChanger.cs" />
     <Compile Include="Extensions.cs" />
     <Compile Include="File\FileTransmission.cs" />
