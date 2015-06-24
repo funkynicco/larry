@@ -93,6 +93,7 @@ namespace Larry.Network
             if (userClient.FileTransmit != null &&
                 userClient.CurrentTransmitDirection == FileTransmitDirection.Receive)
             {
+                userClient.LastActivity = DateTime.UtcNow;
                 if (userClient.Buffer.Length > 0)
                 {
                     OnClientData(client, userClient.Buffer.GetBuffer(), (int)userClient.Buffer.Length);
@@ -235,14 +236,21 @@ namespace Larry.Network
                     userClient.CurrentTransmitDirection == FileTransmitDirection.Send &&
                     userClient.FileTransmit.IsTransmitting)
                 {
-                    var buffer = new byte[65536];
+                    var buffer = new byte[1048576];
                     int toSend = (int)Math.Min(userClient.FileTransmit.Remaining, buffer.Length);
-                    userClient.FileTransmit.Read(buffer, toSend);
 
-                    int numberOfBytesSent = userClient.NetworkClient.Send(buffer, toSend);
+                    int numberOfBytesRead = 0;
+                    while (numberOfBytesRead < toSend)
+                        numberOfBytesRead += userClient.FileTransmit.Read(buffer, toSend - numberOfBytesRead);
+
+                    int numberOfBytesSent = 0;
+                    while (numberOfBytesSent < toSend)
+                        numberOfBytesSent += userClient.NetworkClient.Send(buffer, toSend - numberOfBytesSent);
 
                     if (numberOfBytesSent != toSend)
                         userClient.FileTransmit.Rollback(toSend - numberOfBytesSent);
+
+                    userClient.LastActivity = DateTime.UtcNow;
 
                     if (userClient.FileTransmit.Remaining == 0)
                     {

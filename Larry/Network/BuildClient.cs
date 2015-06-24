@@ -32,7 +32,7 @@ namespace Larry.Network
         private bool _isAuthorized = false;
         private int _nextSendPing = 0;
 
-        private byte[] _fileTransmitBuffer = new byte[65536]; // 65536
+        private byte[] _fileTransmitBuffer = new byte[1048576];
 
         public BuildClient()
         {
@@ -216,9 +216,14 @@ namespace Larry.Network
                     {
                         // send chunk...
                         int toSend = (int)Math.Min(_currentFileTransmission.Remaining, _fileTransmitBuffer.Length);
-                        _currentFileTransmission.Read(_fileTransmitBuffer, toSend);
 
-                        int numberOfBytesSent = Send(_fileTransmitBuffer, toSend);
+                        int numberOfBytesRead = 0;
+                        while (numberOfBytesRead < toSend)
+                            numberOfBytesRead += _currentFileTransmission.Read(_fileTransmitBuffer, toSend - numberOfBytesRead);
+
+                        int numberOfBytesSent = 0;
+                        while (numberOfBytesSent < toSend)
+                            numberOfBytesSent += Send(_fileTransmitBuffer, toSend - numberOfBytesSent);
 
                         if (numberOfBytesSent != toSend)
                             _currentFileTransmission.Rollback(toSend - numberOfBytesSent);

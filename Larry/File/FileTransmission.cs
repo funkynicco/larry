@@ -52,7 +52,7 @@ namespace Larry.File
             _remainingData -= length;
         }
 
-        public void Read(byte[] data, int length)
+        public int Read(byte[] data, int length)
         {
             if (length > _remainingData)
                 throw new DataValidationException(
@@ -60,13 +60,13 @@ namespace Larry.File
                     length,
                     length - _remainingData);
 
-            int x;
-            if ((x = _stream.Read(data, 0, length)) != length)
+            int numberOfBytesRead = _stream.Read(data, 0, length);
+            if (numberOfBytesRead==0)
                 throw new DataValidationException(
-                    "(FileTransmission.Read) _stream.Read returned less than requested! Requested: {0}, Read: {1}",
-                    length,
-                    x);
-            _remainingData -= length;
+                    "(FileTransmission.Read) End of file! Requested: {0}",
+                    length);
+            _remainingData -= numberOfBytesRead;
+            return numberOfBytesRead;
         }
 
         /// <summary>
