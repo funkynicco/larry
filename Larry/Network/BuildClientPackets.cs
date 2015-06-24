@@ -51,11 +51,18 @@ namespace Larry.Network
         void OnBuildResultFile()
         {
             long fileSize = _buffer.ReadInt64();
+            var remoteChecksum = (uint)_buffer.ReadInt32();
 
             //Logger.Log(LogType.Debug, "OnBuildResultFile - {0} bytes", fileSize);
 
             _currentTransmitDirection = FileTransmitDirection.Receive;
-            _currentFileTransmission = FileTransmission.BeginReceive("myos.iso", "myos.iso", DateTime.UtcNow, fileSize, Path.GetTempFileName());
+            _currentFileTransmission = FileTransmission.BeginReceive(
+                "myos.iso",
+                "myos.iso",
+                DateTime.UtcNow,
+                fileSize,
+                Path.GetTempFileName(),
+                remoteChecksum);
 
             throw new FileTransmitBeginException();
         }

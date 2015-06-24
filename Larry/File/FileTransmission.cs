@@ -19,16 +19,32 @@ namespace Larry.File
 
         public bool IsTransmitting { get { return _stream != null; } }
 
+        private readonly uint _remoteChecksum;
+        private readonly Crc32 _localCrc = new Crc32();
+
+        public uint RemoteChecksum { get { return _remoteChecksum; } }
+        public uint LocalChecksum { get { return _localCrc.Result; } }
+
+        /// <summary>
+        /// Gets a value indicating whether the local file matches the remote file based on the checksum.
+        /// </summary>
+        public bool IsFileCorrupted
+        {
+            get { return _localCrc.Result != _remoteChecksum; }
+        }
+
         private FileTransmission(
             string localPath,
             string remotePath,
             DateTime fileDateUtc,
-            long fileSize)
+            long fileSize,
+            uint senderChecksum)
         {
             LocalPath = localPath;
             RemotePath = remotePath;
             FileDateUtc = fileDateUtc;
             _remainingData = FileSize = fileSize;
+            _remoteChecksum = senderChecksum;
         }
 
         public void Dispose()
@@ -50,6 +66,8 @@ namespace Larry.File
 
             _stream.Write(data, 0, length);
             _remainingData -= length;
+
+            _localCrc.ComputeChunk(data, 0, length);
         }
 
         public int Read(byte[] data, int length)
@@ -61,25 +79,12 @@ namespace Larry.File
                     length - _remainingData);
 
             int numberOfBytesRead = _stream.Read(data, 0, length);
-            if (numberOfBytesRead==0)
+            if (numberOfBytesRead == 0)
                 throw new DataValidationException(
                     "(FileTransmission.Read) End of file! Requested: {0}",
                     length);
             _remainingData -= numberOfBytesRead;
             return numberOfBytesRead;
-        }
-
-        /// <summary>
-        /// Rollback a read or write by amount of bytes in order to cater send buffer overflows.
-        /// </summary>
-        /// <param name="length">Amount of bytes to rollback with</param>
-        public void Rollback(int length)
-        {
-            if (_stream.Position - length < 0)
-                throw new ArgumentOutOfRangeException("Cannot go beyond stream position.");
-
-            _remainingData += length;
-            _stream.Position -= length;
         }
 
         public void BeginTransmit()
@@ -124,9 +129,13 @@ namespace Larry.File
             string remotePath,
             DateTime fileDateUtc,
             long fileSize,
-            string temporaryFile)
+            string temporaryFile,
+            uint remoteChecksum)
         {
-            var transmission = new FileTransmission(localPath, remotePath, fileDateUtc, fileSize);
+            //var crc = new Crc32();
+            //var serverChecksum = crc.ComputeFile(localPath);
+
+            var transmission = new FileTransmission(localPath, remotePath, fileDateUtc, fileSize, remoteChecksum);
             transmission._temporaryFile = temporaryFile;
             transmission._stream = new FileStream(temporaryFile, FileMode.Create, FileAccess.Write);
             transmission._remainingData = fileSize;
@@ -136,7 +145,12 @@ namespace Larry.File
         public static FileTransmission CreateFromFile(string localPath, string remotePath)
         {
             var fileInfo = new FileInfo(localPath);
-            return new FileTransmission(localPath, remotePath, fileInfo.LastWriteTimeUtc, fileInfo.Length);
+
+            // calculate checksum ...
+            var crc = new Crc32();
+            var localChecksum = crc.ComputeFile(localPath);
+
+            return new FileTransmission(localPath, remotePath, fileInfo.LastWriteTimeUtc, fileInfo.Length, localChecksum);
         }
     }
 }

@@ -40,6 +40,9 @@ namespace Larry.Network
 
             var fileSize = client.Buffer.ReadInt64();
             var ticks = client.Buffer.ReadInt64();
+
+            var remoteChecksum = (uint)client.Buffer.ReadInt32();
+
             //Logger.Log(LogType.Debug, "Ticks: {0}", ticks);
             var fileDateUtc = DateTime.UtcNow; //DateTime.SpecifyKind(new DateTime(ticks), DateTimeKind.Utc);
 
@@ -66,7 +69,7 @@ namespace Larry.Network
                 return;
             }
 
-            client.FileTransmit = FileTransmission.BeginReceive(localPath, remotePath, fileDateUtc, fileSize, Path.GetTempFileName());
+            client.FileTransmit = FileTransmission.BeginReceive(localPath, remotePath, fileDateUtc, fileSize, Path.GetTempFileName(), remoteChecksum);
             client.CurrentTransmitDirection = FileTransmitDirection.Receive;
 
             Logger.Log(LogType.Debug, "Begin transmit {0} ({1} bytes)", remotePath, fileSize);
@@ -109,6 +112,7 @@ namespace Larry.Network
 
                 client.CreatePacket(PacketHeader.BuildResultFile)
                     .Write(client.FileTransmit.FileSize)
+                    .Write(client.FileTransmit.RemoteChecksum)
                     .Send();
 
                 client.FileTransmit.BeginTransmit(); // TODO: make this..

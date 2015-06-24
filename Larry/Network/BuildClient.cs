@@ -102,6 +102,9 @@ namespace Larry.Network
 
                     Logger.Log(LogType.Debug, "File complete: {0}", _currentFileTransmission.RemotePath);
 
+                    if (_currentFileTransmission.IsFileCorrupted)
+                        Logger.Log(LogType.Error, "ERR FILE CORRUPTED => {0}", _currentFileTransmission.RemotePath);
+
                     _currentFileTransmission.Dispose();
                     _currentFileTransmission = null;
                     _currentTransmitDirection = FileTransmitDirection.None;
@@ -225,9 +228,6 @@ namespace Larry.Network
                         while (numberOfBytesSent < toSend)
                             numberOfBytesSent += Send(_fileTransmitBuffer, toSend - numberOfBytesSent);
 
-                        if (numberOfBytesSent != toSend)
-                            _currentFileTransmission.Rollback(toSend - numberOfBytesSent);
-
                         if (_currentFileTransmission.Remaining == 0)
                         {
                             // file upload completed
@@ -249,11 +249,12 @@ namespace Larry.Network
                         LogType.Debug,
                         "Request transmit {0}",
                         _currentFileTransmission.LocalPath);*/
-
+                        
                     CreatePacket(PacketHeader.Store)
                         .Write(_currentFileTransmission.RemotePath)
                         .Write(_currentFileTransmission.FileSize)
                         .Write(_currentFileTransmission.FileDateUtc.Ticks)
+                        .Write((int)_currentFileTransmission.RemoteChecksum)
                         .Send();
                 }
             }

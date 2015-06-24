@@ -112,6 +112,8 @@ namespace Larry.Network
                     userClient.FileTransmit.EndReceive();
 
                     Logger.Log(LogType.Debug, "File complete: {0}", userClient.FileTransmit.RemotePath);
+                    if (userClient.FileTransmit.IsFileCorrupted)
+                        Logger.Log(LogType.Error, "ERR FILE CORRUPTED => {0}", userClient.FileTransmit.RemotePath);
 
                     userClient.FileTransmit.Dispose();
                     userClient.FileTransmit = null;
@@ -246,9 +248,6 @@ namespace Larry.Network
                     int numberOfBytesSent = 0;
                     while (numberOfBytesSent < toSend)
                         numberOfBytesSent += userClient.NetworkClient.Send(buffer, toSend - numberOfBytesSent);
-
-                    if (numberOfBytesSent != toSend)
-                        userClient.FileTransmit.Rollback(toSend - numberOfBytesSent);
 
                     userClient.LastActivity = DateTime.UtcNow;
 
