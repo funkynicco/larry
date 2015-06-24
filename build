@@ -8,6 +8,7 @@ dmcs -debug -unsafe \
 	Larry/Logger.cs \
 	Larry/DirectoryChanger.cs \
 	Larry/DataLogger.cs \
+	Larry/Crc32.cs \
 	Larry/BaseNetwork/DataValidationException.cs \
 	Larry/BaseNetwork/IClient.cs \
 	Larry/BaseNetwork/NetworkClientBase.cs \
