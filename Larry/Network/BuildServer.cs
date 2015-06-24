@@ -211,13 +211,16 @@ namespace Larry.Network
                 {
                     var userClient = client.Tag as UserClient;
 
-                    if ((now - userClient.LastActivity).TotalSeconds >= (userClient.IsAuthorized ? 60 : 15))
+                    int inactivityPeriodMax = userClient.IsAuthorized ? 60 : 15;
+
+                    if ((now - userClient.LastActivity).TotalSeconds >= inactivityPeriodMax)
                     {
                         Logger.Log(
                             LogType.Warning,
-                            "Disconnecting {0}-{1} due to 15 seconds inactivity.",
+                            "Disconnecting {0}-{1} due to {2} seconds inactivity.",
                             client.IP,
-                            client.SocketHandle.ToInt32());
+                            client.SocketHandle.ToInt32(),
+                            inactivityPeriodMax);
 
                         client.Disconnect();
                     }

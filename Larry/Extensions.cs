@@ -8,46 +8,44 @@ namespace Larry
 {
     public static class Extensions
     {
-        #region MemoryStream Read and Write
-        public static unsafe short ReadInt16(this MemoryStream stream)
+        #region Stream Read and Write
+        public static unsafe short ReadInt16(this Stream stream)
         {
             return (short)(
-                stream.GetBuffer()[stream.Position++] |
-                stream.GetBuffer()[stream.Position++] << 8);
+                stream.ReadByte() |
+                stream.ReadByte() << 8);
         }
 
-        public static unsafe int ReadInt32(this MemoryStream stream)
+        public static unsafe int ReadInt32(this Stream stream)
         {
-            var buf = stream.GetBuffer();
             return
-                buf[stream.Position++] |
-                buf[stream.Position++] << 8 |
-                buf[stream.Position++] << 16 |
-                buf[stream.Position++] << 24;
+                stream.ReadByte() |
+                stream.ReadByte() << 8 |
+                stream.ReadByte() << 16 |
+                stream.ReadByte() << 24;
         }
 
-        public static unsafe long ReadInt64(this MemoryStream stream)
+        public static unsafe long ReadInt64(this Stream stream)
         {
-            var buf = stream.GetBuffer();
             return
-                buf[stream.Position++] |
-                buf[stream.Position++] << 8 |
-                buf[stream.Position++] << 16 |
-                buf[stream.Position++] << 24 |
-                buf[stream.Position++] << 32 |
-                buf[stream.Position++] << 40 |
-                buf[stream.Position++] << 48 |
-                buf[stream.Position++] << 56;
+                stream.ReadByte() |
+                stream.ReadByte() << 8 |
+                stream.ReadByte() << 16 |
+                stream.ReadByte() << 24 |
+                stream.ReadByte() << 32 |
+                stream.ReadByte() << 40 |
+                stream.ReadByte() << 48 |
+                stream.ReadByte() << 56;
         }
 
-        public static byte[] ReadBytes(this MemoryStream stream, int length)
+        public static byte[] ReadBytes(this Stream stream, int length)
         {
             var bytes = new byte[length];
             stream.Read(bytes, 0, length);
             return bytes;
         }
 
-        public static unsafe void Write(this MemoryStream stream, short value)
+        public static unsafe void Write(this Stream stream, short value)
         {
             byte* ptr = (byte*)&value;
 
@@ -55,7 +53,7 @@ namespace Larry
                 stream.WriteByte(*ptr++);
         }
 
-        public static unsafe void Write(this MemoryStream stream, int value)
+        public static unsafe void Write(this Stream stream, int value)
         {
             byte* ptr = (byte*)&value;
 
@@ -63,7 +61,7 @@ namespace Larry
                 stream.WriteByte(*ptr++);
         }
 
-        public static unsafe void Write(this MemoryStream stream, long value)
+        public static unsafe void Write(this Stream stream, long value)
         {
             byte* ptr = (byte*)&value;
 
@@ -71,17 +69,17 @@ namespace Larry
                 stream.WriteByte(*ptr++);
         }
 
-        public static void Write(this MemoryStream stream, byte[] data)
+        public static void Write(this Stream stream, byte[] data)
         {
             stream.Write(data, 0, data.Length);
         }
 
-        public static string ReadPrefixString(this MemoryStream stream)
+        public static string ReadPrefixString(this Stream stream)
         {
             return Encoding.GetEncoding(1252).GetString(stream.ReadBytes(stream.ReadInt32()));
         }
 
-        public static void WritePrefixString(this MemoryStream stream, string text)
+        public static void WritePrefixString(this Stream stream, string text)
         {
             stream.Write(text.Length);
             stream.Write(Encoding.GetEncoding(1252).GetBytes(text));
@@ -89,9 +87,15 @@ namespace Larry
 
         public static void Delete(this MemoryStream stream, int length)
         {
+            if (length == stream.Length)
+            {
+                stream.SetLength(0);
+                return;
+            }
+
             var buffer = stream.GetBuffer();
 
-            Buffer.BlockCopy(buffer, length, buffer, 0, length);
+            Buffer.BlockCopy(buffer, length, buffer, 0, (int)(stream.Length - length));
             stream.SetLength(stream.Length - length);
         }
         #endregion

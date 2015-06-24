@@ -122,6 +122,19 @@ namespace Larry
         {
             var title = Console.Title;
 
+            DataLogger.SetBinaryFilename(@"C:\cygwin64\home\Nicco\os\data_logs\2015-06-23\21.12.08.bin");
+
+            /*var data = new byte[] { 1, 3, 3, 7 };
+            DataLogger.SetBinaryFilename(@"C:\cygwin64\home\Nicco\os\data_logs\2015-06-23\21.12.08.bin");
+            DataLogger.Log(data, data.Length);
+
+            data = new byte[] { 9, 8, 7, 6 };
+            DataLogger.Log(data, data.Length);
+
+            data = new byte[] { 13, 53, 198, 75, 21, 142, 33 };
+            DataLogger.Log(data, data.Length);
+
+            return;*/
             try
             {
                 SubMain(args);

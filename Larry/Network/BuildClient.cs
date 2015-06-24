@@ -75,6 +75,7 @@ namespace Larry.Network
         protected override void OnData(byte[] buffer, int length)
         {
             //Logger.Log(LogType.Debug, "Received {0} bytes", length);
+            DataLogger.Log(buffer, length);
 
             if (_currentFileTransmission != null &&
                 _currentTransmitDirection == FileTransmitDirection.Receive)
@@ -86,6 +87,8 @@ namespace Larry.Network
                     _buffer.SetLength(0);
                     OnData(_buffer.GetBuffer(), (int)len);
                 }
+
+                Logger.Log(LogType.Debug, "Remaining: {0}", _currentFileTransmission.Remaining);
 
                 // we're currently receiving a file
                 int toWrite = (int)Math.Min(length, _currentFileTransmission.Remaining);
@@ -137,8 +140,8 @@ namespace Larry.Network
                             LogType.Warning,
                             "ReadHeader: {0}",
                             Enum.GetName(typeof(ReadPacketResult), result));
-                        Utilities.DumpData(buffer, length);
-                        Close();
+                        Utilities.DumpData(_buffer.GetBuffer(), (int)_buffer.Length);
+                        //Close();
                         return;
                     case ReadPacketResult.NeedMoreData:
                         return; // exit out of OnClientData and wait for more data...
@@ -169,6 +172,7 @@ namespace Larry.Network
                     }
                     else if (ex.InnerException is FileTransmitBeginException)
                     {
+                        _buffer.Delete(NetworkStandards.HeaderSize + dataSize);
                         OnData(new byte[] { }, 0);
                         return;
                     }
