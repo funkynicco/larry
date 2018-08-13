@@ -1,18 +1,38 @@
 ﻿using Larry.File;
 using Larry.Network;
+using Larry.Scripts;
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
+using System.Text.RegularExpressions;
 using System.Threading;
 
 namespace Larry
 {
     class Program
     {
+        public static bool EnableDebugMessages { get; private set; }
+        public static bool ShowTimesInMessages { get; private set; }
         const int SleepTime = 30;
+
+        struct FileSendObject
+        {
+            public string LocalPath { get; private set; }
+            public string RemotePath { get; private set; }
+
+            public FileSendObject(string localPath, string remotePath)
+            {
+                LocalPath = localPath;
+                RemotePath = remotePath;
+            }
+        }
 
         static void SubMain(string[] args)
         {
+            Console.WriteLine($"Larry Build {BuildVersion.Version} ({BuildVersion.Date} UTC)");
+
             using (var directoryChanger = new DirectoryChanger()) // DirectoryChanger automatically resets the working directory upon Dispose
             {
                 int port = 11929;
@@ -21,12 +41,31 @@ namespace Larry
                 string username = string.Empty;
                 string password = string.Empty;
                 int paramIndex = 0;
+                var filesToSend = new List<FileSendObject>();
+                ShowTimesInMessages = true;
+#if DEBUG
+                EnableDebugMessages = true;
+#else // DEBUG
+                EnableDebugMessages = false;
+#endif // DEBUG
 
                 for (int i = 0; i < args.Length; ++i)
                 {
                     if (args[i] == "--server")
                     {
                         isServer = true;
+                    }
+                    else if (args[i] == "--script")
+                    {
+                        if (i + 1 >= args.Length)
+                            throw new ArgumentNotProvidedException("Script filename");
+
+                        using (var scriptRunner = new ScriptRunner())
+                        {
+                            scriptRunner.Run(args[i + 1]);
+                        }
+
+                        return;
                     }
                     else if (args[i] == "-p")
                     {
@@ -43,6 +82,14 @@ namespace Larry
 
                         directoryChanger.Change(args[++i]);
                     }
+                    else if (args[i] == "--debug")
+                    {
+                        EnableDebugMessages = true;
+                    }
+                    else if (args[i] == "--no-time")
+                    {
+                        ShowTimesInMessages = false;
+                    }
                     else
                     {
                         switch (paramIndex++)
@@ -50,14 +97,18 @@ namespace Larry
                             case 0:
                                 address = args[i];
                                 break;
-                            /*case 1:
-                                localPath = args[i];
-                                break;
-                            case 2:
-                                remotePath = args[i];
-                                break;*/
                             default:
-                                throw new MessageException("Too many arguments provided.");
+                                {
+                                    var match = Regex.Match(args[i], "^([^=]+)=([^=]+)$");
+                                    if (!match.Success)
+                                        throw new MessageException("One or more files to send in parameters were invalid.");
+
+                                    if (!System.IO.File.Exists(match.Groups[1].Value))
+                                        throw new MessageException("Local file not found: {0}", match.Groups[1].Value);
+
+                                    filesToSend.Add(new FileSendObject(match.Groups[1].Value, match.Groups[2].Value));
+                                }
+                                break;
                         }
                     }
                 }
@@ -66,7 +117,8 @@ namespace Larry
 
                 if (isServer)
                 {
-                    Console.Title = "Build Server";
+                    if (Environment.OSVersion.Platform == PlatformID.Win32NT)
+                        Console.Title = "Build Server";
 
                     using (var server = new BuildServer())
                     {
@@ -98,18 +150,31 @@ namespace Larry
                 if (string.IsNullOrEmpty(address))
                     throw new MessageException("<address> was not provided.");
 
+                if (filesToSend.Count == 0)
+                    throw new MessageException("There are no files to send.");
+
                 // run client
-                using (var client = new BuildClient())
+                using (var client = new BuildClient(false))
                 {
                     if (client.Connect(address, port))
                     {
-                        client.AddFileTransmission(FileTransmission.CreateFromFile("output\\myos.bin", "isodir\\boot\\myos.bin")); // path is normalized in linux
-                        client.AddFileTransmission(FileTransmission.CreateFromFile("grub.cfg", "isodir\\boot\\grub\\grub.cfg"));
+                        //client.AddFileTransmission(FileTransmission.CreateFromFile("output\\myos.bin", "isodir\\boot\\myos.bin")); // path is normalized in linux
+                        //client.AddFileTransmission(FileTransmission.CreateFromFile("src\\grub.cfg", "isodir\\boot\\grub\\grub.cfg"));
 
-                        while (!client.IsFinished)
+                        foreach (var file in filesToSend)
                         {
-                            client.Process();
-                            Thread.Sleep(SleepTime);
+                            client.AddFileTransmission(FileTransmission.CreateFromFile(
+                                file.LocalPath,
+                                file.RemotePath));
+                        }
+
+                        using (var source = new CancellationTokenSource())
+                        {
+                            while (!client.IsFinished)
+                            {
+                                client.Process(source.Token);
+                                Thread.Sleep(SleepTime);
+                            }
                         }
                     }
                     else
@@ -120,9 +185,11 @@ namespace Larry
 
         static void Main(string[] args)
         {
-            var title = Console.Title;
+            string originalConsoleTitle = null;
+            if (Environment.OSVersion.Platform == PlatformID.Win32NT)
+                originalConsoleTitle = Console.Title;
 
-            DataLogger.SetBinaryFilename(@"C:\cygwin64\home\Nicco\os\data_logs\2015-06-23\21.12.08.bin");
+            //DataLogger.SetBinaryFilename(@"C:\cygwin64\home\Nicco\os\data_logs\2015-06-23\21.12.08.bin");
 
             /*var data = new byte[] { 1, 3, 3, 7 };
             DataLogger.SetBinaryFilename(@"C:\cygwin64\home\Nicco\os\data_logs\2015-06-23\21.12.08.bin");
@@ -148,7 +215,8 @@ namespace Larry
                 Logger.Log(LogType.Error, msg.Message);
             }
 
-            Console.Title = title;
+            if (!string.IsNullOrWhiteSpace(originalConsoleTitle))
+                Console.Title = originalConsoleTitle;
         }
 
         class ArgumentNotProvidedException : Exception

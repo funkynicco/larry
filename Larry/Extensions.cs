@@ -8,6 +8,8 @@ namespace Larry
 {
     public static class Extensions
     {
+        private static readonly Encoding _defaultEncoding = Encoding.UTF8;
+
         #region Stream Read and Write
         public static unsafe short ReadInt16(this Stream stream)
         {
@@ -28,14 +30,14 @@ namespace Larry
         public static unsafe long ReadInt64(this Stream stream)
         {
             return
-                stream.ReadByte() |
-                stream.ReadByte() << 8 |
-                stream.ReadByte() << 16 |
-                stream.ReadByte() << 24 |
-                stream.ReadByte() << 32 |
-                stream.ReadByte() << 40 |
-                stream.ReadByte() << 48 |
-                stream.ReadByte() << 56;
+                (long)stream.ReadByte() |
+                ((long)stream.ReadByte() << 8) |
+                ((long)stream.ReadByte() << 16) |
+                ((long)stream.ReadByte() << 24) |
+                ((long)stream.ReadByte() << 32) |
+                ((long)stream.ReadByte() << 40) |
+                ((long)stream.ReadByte() << 48) |
+                ((long)stream.ReadByte() << 56);
         }
 
         public static byte[] ReadBytes(this Stream stream, int length)
@@ -70,23 +72,24 @@ namespace Larry
         }
 
         public static void Write(this Stream stream, byte[] data)
-        {
-            stream.Write(data, 0, data.Length);
-        }
+            => stream.Write(data, 0, data.Length);
 
         public static string ReadPrefixString(this Stream stream)
-        {
-            return Encoding.GetEncoding(1252).GetString(stream.ReadBytes(stream.ReadInt32()));
-        }
+            => _defaultEncoding.GetString(stream.ReadBytes(stream.ReadInt32()));
 
         public static void WritePrefixString(this Stream stream, string text)
         {
-            stream.Write(text.Length);
-            stream.Write(Encoding.GetEncoding(1252).GetBytes(text));
+            var bytes = _defaultEncoding.GetBytes(text);
+
+            stream.Write(bytes.Length);
+            stream.Write(bytes, 0, bytes.Length);
         }
 
         public static void Delete(this MemoryStream stream, int length)
         {
+            if (length > stream.Length)
+                throw new ArgumentException("Cannot delete more bytes than stream length.", nameof(length));
+
             if (length == stream.Length)
             {
                 stream.SetLength(0);
@@ -97,13 +100,6 @@ namespace Larry
 
             Buffer.BlockCopy(buffer, length, buffer, 0, (int)(stream.Length - length));
             stream.SetLength(stream.Length - length);
-        }
-        #endregion
-
-        #region .NET 4.5 stuff
-        public static T GetCustomAttribute<T>(this MemberInfo member) where T : Attribute
-        {
-            return (T)member.GetCustomAttributes(typeof(T), false).FirstOrDefault();
         }
         #endregion
     }

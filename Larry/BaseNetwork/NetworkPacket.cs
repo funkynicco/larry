@@ -9,12 +9,13 @@ namespace Larry.Network
         private readonly IClient _client;
         private readonly MemoryStream _stream;
 
-        private NetworkPacket(IClient client, short header)
+        private NetworkPacket(IClient client, int requestId, short header)
         {
             _client = client;
             _stream = new MemoryStream(1024);
 
             Write(NetworkStandards.HeaderPrefix);
+            Write(requestId);
             Write(header);
             Write(0); // length
         }
@@ -51,19 +52,17 @@ namespace Larry.Network
 
         public bool Send()
         {
-            _stream.Position = 3;
+            _stream.Position = 7;
             Write((int)_stream.Length - NetworkStandards.HeaderSize);
             _stream.Position = _stream.Length;
 
             int toSend = (int)_stream.Length;
-            return _client.Send(_stream.GetBuffer(), toSend) == toSend;
+            return _client.Send(_stream.GetBuffer(), 0, toSend) == toSend;
         }
 
         // static
 
-        public static NetworkPacket Create<T>(IClient client, T header) where T : IConvertible
-        {
-            return new NetworkPacket(client, header.ToInt16(CultureInfo.InvariantCulture));
-        }
+        public static NetworkPacket Create<T>(IClient client, int requestId, T header) where T : IConvertible
+            => new NetworkPacket(client, requestId, header.ToInt16(CultureInfo.InvariantCulture));
     }
 }

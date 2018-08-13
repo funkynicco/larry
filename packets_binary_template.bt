@@ -1,0 +1,69 @@
+//--------------------------------------
+//--- 010 Editor v6.0.2 Binary Template
+//
+// File:
+// Author:
+// Revision:
+// Purpose:
+//--------------------------------------
+
+local int i;
+
+struct packet
+{
+    byte prefix;
+    short packetHeader;
+    int packetLength;
+    //byte data[packetLength];
+};
+
+string TranslatePacketHeader(short packetHeader)
+{
+    switch (packetHeader)
+    {
+        case 1: return "Ping";
+        case 2: return "Authorize";
+        case 3: return "Store";
+        case 4: return "TransmitComplete";
+        case 8: return "DoBuild";
+        case 16: return "BuildResultFile";
+    }
+
+    return "Unknown";
+}
+
+string PacketComment(const packet& p)
+{
+    local char buffer[1024];
+    SPrintf(
+        buffer,
+        "[%s] prefix: 0x%02X, header: 0x%04X, len: %d",
+        TranslatePacketHeader(p.packetHeader),
+        p.prefix & 0xff,
+        p.packetHeader & 0xffff,
+        p.packetLength & 0xffffffff);
+    return buffer;
+}
+
+struct BuildResultFile
+{
+    int64 fileSize;
+};
+
+while (!FEof())
+//for (i = 0; i < 50; ++i)
+{
+    packet header <comment=PacketComment>;
+    if (header.packetLength > 0)
+    {
+        if (header.packetHeader == 0x0010) {
+            BuildResultFile brf;
+            if (FSkip(brf.fileSize) != 0)
+                Exit(0);
+        } else {
+            if (FSkip(header.packetLength) != 0)
+                Exit(0);
+        }
+    }
+}
+

@@ -1,0 +1,29 @@
+//--------------------------------------
+//--- 010 Editor v6.0.2 Binary Template
+//
+// File:
+// Author:
+// Revision:
+// Purpose:
+//--------------------------------------
+
+local int i;
+local int64 temp;
+
+int64 dataIndexOffset;
+FSeek(dataIndexOffset);
+int numberOfIndices;
+
+struct DATA {
+    unsigned byte data[length] <format=decimal>;
+};
+
+for (i = 0; i < numberOfIndices; ++i)
+{
+    int64 offset;
+    int64 length;
+    temp = FTell();
+    FSeek(offset);
+    DATA data;
+    FSeek(temp);
+}

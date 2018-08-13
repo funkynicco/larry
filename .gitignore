@@ -16,6 +16,11 @@ bld/
 [Bb]in/
 [Oo]bj/
 
+Larry/Test/
+.vs/
+XX/
+_OLD_Larry.csproj
+
 # Roslyn cache directories
 *.ide/
 

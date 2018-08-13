@@ -41,32 +41,44 @@ namespace Larry
 
         public static void Log(LogType type, string text)
         {
-            var date = DateTime.Now;
-            Console.Write("[{0:00}:{1:00}:{2:00}]", date.Hour, date.Minute, date.Second);
-
-            var color = Console.ForegroundColor;
-            switch (type)
+            if (Program.EnableDebugMessages ||
+                type != LogType.Debug)
             {
-                case LogType.Debug:
-                    Console.ForegroundColor = ConsoleColor.Blue;
-                    break;
-                case LogType.Security:
-                case LogType.Warning:
-                    Console.ForegroundColor = ConsoleColor.Yellow;
-                    break;
-                case LogType.Error:
-                    Console.ForegroundColor = ConsoleColor.Red;
-                    break;
+                if (Program.ShowTimesInMessages)
+                {
+                    var date = DateTime.Now;
+                    Console.Write("[{0:00}:{1:00}:{2:00}]", date.Hour, date.Minute, date.Second);
+                }
+
+                if (type != LogType.Normal)
+                {
+                    var color = Console.ForegroundColor;
+                    switch (type)
+                    {
+                        case LogType.Debug:
+                            Console.ForegroundColor = ConsoleColor.Blue;
+                            break;
+                        case LogType.Security:
+                        case LogType.Warning:
+                            Console.ForegroundColor = ConsoleColor.Yellow;
+                            break;
+                        case LogType.Error:
+                            Console.ForegroundColor = ConsoleColor.Red;
+                            break;
+                    }
+
+                    Console.Write("[{0}] ", Enum.GetName(typeof(LogType), type));
+
+                    if (type != LogType.Error) // reset color
+                        Console.ForegroundColor = color;
+
+                    Console.WriteLine(text);
+
+                    Console.ForegroundColor = color;
+                }
+                else
+                    Console.WriteLine(text);
             }
-
-            Console.Write("[{0}] ", Enum.GetName(typeof(LogType), type));
-
-            if (type != LogType.Error) // reset color
-                Console.ForegroundColor = color;
-
-            Console.WriteLine(text);
-
-            Console.ForegroundColor = color;
 
             LogFile(type, text);
         }

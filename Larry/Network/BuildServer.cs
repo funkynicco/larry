@@ -45,13 +45,29 @@ namespace Larry.Network
                 NetworkClient.Disconnect(reason);
             }
 
-            public NetworkPacket CreatePacket(PacketHeader header)
+            public NetworkPacket CreatePacket(int requestId, PacketHeader header)
             {
-                return NetworkPacket.Create(NetworkClient, header);
+                return NetworkPacket.Create(NetworkClient, requestId, header);
             }
         }
 
-        private readonly Dictionary<PacketHeader, MethodInfo> _packetMethods = new Dictionary<PacketHeader, MethodInfo>();
+        class PacketMethod
+        {
+            public MethodInfo Method { get; private set; }
+
+            public PacketHeader Header { get; private set; }
+
+            public bool SkipAuthorization { get; private set; }
+
+            public PacketMethod(MethodInfo method, PacketHeader header, bool skipAuthorization)
+            {
+                Method = method;
+                Header = header;
+                SkipAuthorization = skipAuthorization;
+            }
+        }
+
+        private readonly Dictionary<PacketHeader, PacketMethod> _packetMethods = new Dictionary<PacketHeader, PacketMethod>();
         private int _nextCheckActivity = 0;
 
         public BuildServer()
@@ -61,7 +77,9 @@ namespace Larry.Network
                 var attribute = mi.GetCustomAttribute<PacketAttribute>();
                 if (attribute != null)
                 {
-                    _packetMethods.Add(attribute.Header, mi);
+                    var skipAuthorization = mi.GetCustomAttribute<SkipAuthorizationAttribute>() != null;
+
+                    _packetMethods.Add(attribute.Header, new PacketMethod(mi, attribute.Header, skipAuthorization));
 
                     //Logger.Log(LogType.Debug, "Binding method '{0}' to packet '{1}'", mi.Name, attribute.Header);
                 }
@@ -90,6 +108,8 @@ namespace Larry.Network
 
             userClient.LastActivity = DateTime.UtcNow;
 
+            //Utilities.DumpData(buffer, length);
+
             if (userClient.FileTransmit != null &&
                 userClient.CurrentTransmitDirection == FileTransmitDirection.Receive)
             {
@@ -103,7 +123,7 @@ namespace Larry.Network
 
                 // we're currently receiving a file
                 int toWrite = (int)Math.Min(length, userClient.FileTransmit.Remaining);
-                userClient.FileTransmit.Write(buffer, toWrite);
+                userClient.FileTransmit.Write(buffer, 0, toWrite);
 
                 //Logger.Log(LogType.Debug, "Wrote {0} bytes - Remaining {1}", toWrite, userClient.FileTransmit.Remaining);
 
@@ -119,7 +139,7 @@ namespace Larry.Network
                     userClient.FileTransmit = null;
                     userClient.CurrentTransmitDirection = FileTransmitDirection.None;
 
-                    userClient.CreatePacket(PacketHeader.TransmitComplete).Send(); // notify transmit completed
+                    userClient.CreatePacket(0, PacketHeader.TransmitComplete).Send(); // notify transmit completed
 
                     if ((length - toWrite) > 0)
                     {
@@ -142,10 +162,11 @@ namespace Larry.Network
             {
                 userClient.Buffer.Position = 0;
 
+                int requestId;
                 short header;
                 int dataSize;
 
-                switch (result = Utilities.ReadHeader(userClient.Buffer, out header, out dataSize))
+                switch (result = Utilities.ReadHeader(userClient.Buffer, out requestId, out header, out dataSize))
                 {
                     case ReadPacketResult.InvalidData:
                     case ReadPacketResult.DataSizeInvalid:
@@ -165,9 +186,8 @@ namespace Larry.Network
                 }
 
                 // call packet methods
-
-                MethodInfo methodInfo;
-                if (!_packetMethods.TryGetValue((PacketHeader)header, out methodInfo))
+                PacketMethod packetMethod;
+                if (!_packetMethods.TryGetValue((PacketHeader)header, out packetMethod))
                 {
                     Logger.Log(
                            LogType.Warning,
@@ -179,9 +199,22 @@ namespace Larry.Network
                     return;
                 }
 
+                if (!packetMethod.SkipAuthorization &&
+                    !userClient.IsAuthorized)
+                {
+                    Logger.Log(
+                           LogType.Warning,
+                           "[{0}-{1}] Unauthorized packet: 0x{2}",
+                           client.IP,
+                           client.SocketHandle.ToInt32(),
+                           header.ToString("x4"));
+                    client.Disconnect();
+                    return;
+                }
+
                 try
                 {
-                    methodInfo.Invoke(this, new object[] { userClient });
+                    packetMethod.Method.Invoke(this, new object[] { userClient, requestId });
                 }
                 catch (DataValidationException ex)
                 {
@@ -243,11 +276,11 @@ namespace Larry.Network
 
                     int numberOfBytesRead = 0;
                     while (numberOfBytesRead < toSend)
-                        numberOfBytesRead += userClient.FileTransmit.Read(buffer, toSend - numberOfBytesRead);
+                        numberOfBytesRead += userClient.FileTransmit.Read(buffer, 0, toSend - numberOfBytesRead);
 
                     int numberOfBytesSent = 0;
                     while (numberOfBytesSent < toSend)
-                        numberOfBytesSent += userClient.NetworkClient.Send(buffer, toSend - numberOfBytesSent);
+                        numberOfBytesSent += userClient.NetworkClient.Send(buffer, 0, toSend - numberOfBytesSent);
 
                     userClient.LastActivity = DateTime.UtcNow;
 

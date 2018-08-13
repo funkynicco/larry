@@ -25,6 +25,9 @@ namespace Larry.File
         public uint RemoteChecksum { get { return _remoteChecksum; } }
         public uint LocalChecksum { get { return _localCrc.Result; } }
 
+        public object Tag { get; set; }
+        public event Action<FileTransmission> FileReceived;
+
         /// <summary>
         /// Gets a value indicating whether the local file matches the remote file based on the checksum.
         /// </summary>
@@ -56,7 +59,7 @@ namespace Larry.File
             }
         }
 
-        public void Write(byte[] data, int length)
+        public void Write(byte[] data, int offset, int length)
         {
             if (length > _remainingData)
                 throw new DataValidationException(
@@ -64,13 +67,13 @@ namespace Larry.File
                     length,
                     length - _remainingData);
 
-            _stream.Write(data, 0, length);
+            _stream.Write(data, offset, length);
             _remainingData -= length;
 
-            _localCrc.ComputeChunk(data, 0, length);
+            _localCrc.ComputeChunk(data, offset, length);
         }
 
-        public int Read(byte[] data, int length)
+        public int Read(byte[] data, int offset, int length)
         {
             if (length > _remainingData)
                 throw new DataValidationException(
@@ -78,7 +81,7 @@ namespace Larry.File
                     length,
                     length - _remainingData);
 
-            int numberOfBytesRead = _stream.Read(data, 0, length);
+            int numberOfBytesRead = _stream.Read(data, offset, length);
             if (numberOfBytesRead == 0)
                 throw new DataValidationException(
                     "(FileTransmission.Read) End of file! Requested: {0}",
@@ -122,6 +125,8 @@ namespace Larry.File
                 System.IO.File.Copy(_temporaryFile, LocalPath, true);
                 new FileInfo(LocalPath).LastWriteTimeUtc = FileDateUtc;
             }
+
+            FileReceived?.Invoke(this);
         }
 
         public static FileTransmission BeginReceive(

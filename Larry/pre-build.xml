@@ -1,0 +1,7 @@
+<?xml version="1.0"?>
+
+<prebuild>
+    <filepath>Build.cs</filepath>
+    <replaceVersion>public const string Version = "[^"]*?(\d+)";</replaceVersion>
+    <replaceDate>public const string Date = "([^"]+)";</replaceDate>
+</prebuild>

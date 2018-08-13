@@ -48,10 +48,8 @@ namespace Larry.Network
             Disconnect(null);
         }
 
-        public int Send(byte[] data, int length)
-        {
-            return Socket.Send(data, length, SocketFlags.None);
-        }
+        public int Send(byte[] data, int offset, int length)
+            => Socket.Send(data, offset, length, SocketFlags.None);
     }
 
     public class NetworkServerBase : IDisposable

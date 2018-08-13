@@ -2,11 +2,13 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Net.Sockets;
 using System.Reflection;
+using System.Threading;
 
 namespace Larry.Network
 {
-    public partial class BuildClient : NetworkClientBase
+    public partial class BuildClient : NetworkClientBase, IRequestDataHost
     {
         private readonly Dictionary<PacketHeader, MethodInfo> _packetMethods = new Dictionary<PacketHeader, MethodInfo>();
 
@@ -17,6 +19,10 @@ namespace Larry.Network
         private readonly Queue<FileTransmission> _fileTransmissionQueue = new Queue<FileTransmission>();
 
         private bool _buildCompletedAndReceived = false;
+        public bool IsScriptClient { get; } = false;
+
+        private int _nextRequestId = 0;
+        private readonly Dictionary<int, RequestData> _requests = new Dictionary<int, RequestData>();
 
         public bool IsFinished
         {
@@ -34,8 +40,10 @@ namespace Larry.Network
 
         private byte[] _fileTransmitBuffer = new byte[1048576];
 
-        public BuildClient()
+        public BuildClient(bool scriptClient)
         {
+            IsScriptClient = scriptClient;
+
             foreach (var mi in GetType().GetMethods(BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public))
             {
                 var attribute = mi.GetCustomAttribute<PacketAttribute>();
@@ -55,9 +63,9 @@ namespace Larry.Network
 
         protected override void OnConnected()
         {
-            Logger.Log(LogType.Debug, "Connected to Build Server");
+            Logger.Log(LogType.Normal, "Connected to Build Server");
 
-            CreatePacket(PacketHeader.Authorize)
+            CreatePacket(0, PacketHeader.Authorize)
                 .Write("kti42j61") // username
                 .Write("j1i541jiu4h6iuh42unabdquqQGUT31huzcNBVqu") // password hash
                 .Send();
@@ -72,10 +80,11 @@ namespace Larry.Network
                 Logger.Log(LogType.Debug, "Disconnected from Build Server");
         }
 
-        protected override void OnData(byte[] buffer, int length)
+        protected override void OnData(byte[] buffer, int offset, int length, CancellationToken cancellationToken)
         {
             //Logger.Log(LogType.Debug, "Received {0} bytes", length);
-            DataLogger.Log(buffer, length);
+            if (length != 0)
+                DataLogger.Log(buffer, offset, length);
 
             if (_currentFileTransmission != null &&
                 _currentTransmitDirection == FileTransmitDirection.Receive)
@@ -85,14 +94,19 @@ namespace Larry.Network
                     var len = _buffer.Length;
                     _buffer.Position = 0;
                     _buffer.SetLength(0);
-                    OnData(_buffer.GetBuffer(), (int)len);
+                    OnData(_buffer.GetBuffer(), 0, (int)len, cancellationToken);
+                    if (cancellationToken.IsCancellationRequested)
+                        return;
                 }
 
-                Logger.Log(LogType.Debug, "Remaining: {0}", _currentFileTransmission.Remaining);
+                if (length == 0)
+                    return;
+
+                //Logger.Log(LogType.Debug, "Remaining: {0}", _currentFileTransmission.Remaining);
 
                 // we're currently receiving a file
                 int toWrite = (int)Math.Min(length, _currentFileTransmission.Remaining);
-                _currentFileTransmission.Write(buffer, toWrite);
+                _currentFileTransmission.Write(buffer, offset, toWrite);
 
                 //Logger.Log(LogType.Debug, "Wrote {0} bytes - Remaining {1}", toWrite, userClient.FileTransmit.Remaining);
 
@@ -100,7 +114,7 @@ namespace Larry.Network
                 {
                     _currentFileTransmission.EndReceive();
 
-                    Logger.Log(LogType.Debug, "File complete: {0}", _currentFileTransmission.RemotePath);
+                    Logger.Log(LogType.Normal, "File complete: {0}", _currentFileTransmission.RemotePath);
 
                     if (_currentFileTransmission.IsFileCorrupted)
                         Logger.Log(LogType.Error, "ERR FILE CORRUPTED => {0}", _currentFileTransmission.RemotePath);
@@ -114,8 +128,8 @@ namespace Larry.Network
                     if ((length - toWrite) > 0)
                     {
                         var newBuffer = new byte[length - toWrite];
-                        Buffer.BlockCopy(buffer, toWrite, newBuffer, 0, length - toWrite);
-                        OnData(newBuffer, newBuffer.Length); // read the remaining data
+                        Buffer.BlockCopy(buffer, offset + toWrite, newBuffer, 0, length - toWrite);
+                        OnData(newBuffer, 0, newBuffer.Length, cancellationToken); // read the remaining data
                     }
                 }
 
@@ -123,17 +137,18 @@ namespace Larry.Network
             }
 
             _buffer.Position = _buffer.Length;
-            _buffer.Write(buffer, 0, length);
+            _buffer.Write(buffer, offset, length);
 
             ReadPacketResult result;
             do
             {
                 _buffer.Position = 0;
 
+                int requestId;
                 short header;
                 int dataSize;
 
-                switch (result = Utilities.ReadHeader(_buffer, out header, out dataSize))
+                switch (result = Utilities.ReadHeader(_buffer, out requestId, out header, out dataSize))
                 {
                     case ReadPacketResult.InvalidData:
                     case ReadPacketResult.DataSizeInvalid:
@@ -165,7 +180,7 @@ namespace Larry.Network
 
                 try
                 {
-                    methodInfo.Invoke(this, new object[] { });
+                    methodInfo.Invoke(this, new object[] { requestId });
                 }
                 catch (TargetInvocationException ex)
                 {
@@ -176,7 +191,7 @@ namespace Larry.Network
                     else if (ex.InnerException is FileTransmitBeginException)
                     {
                         _buffer.Delete(NetworkStandards.HeaderSize + dataSize);
-                        OnData(new byte[] { }, 0);
+                        OnData(new byte[] { }, 0, 0, cancellationToken);
                         return;
                     }
                 }
@@ -186,15 +201,24 @@ namespace Larry.Network
 
                 _buffer.Delete(NetworkStandards.HeaderSize + dataSize);
 
+                if (cancellationToken.IsCancellationRequested)
+                    return;
+
+                if (_currentTransmitDirection == FileTransmitDirection.Receive)
+                {
+                    OnData(new byte[] { }, 0, 0, cancellationToken);
+                    return;
+                }
+
                 if (_buffer.Length == 0)
                     break;
             }
             while (result == ReadPacketResult.Succeeded);
         }
 
-        public override void Process()
+        public override void Process(CancellationToken cancellationToken)
         {
-            base.Process();
+            base.Process(cancellationToken);
 
             if (!IsConnected)
                 return;
@@ -208,7 +232,7 @@ namespace Larry.Network
                     !_currentFileTransmission.IsTransmitting))
                 {
                     _nextSendPing = tick + 10000;
-                    CreatePacket(PacketHeader.Ping).Send();
+                    CreatePacket(0, PacketHeader.Ping).Send();
                 }
 
                 // check queue
@@ -222,16 +246,16 @@ namespace Larry.Network
 
                         int numberOfBytesRead = 0;
                         while (numberOfBytesRead < toSend)
-                            numberOfBytesRead += _currentFileTransmission.Read(_fileTransmitBuffer, toSend - numberOfBytesRead);
+                            numberOfBytesRead += _currentFileTransmission.Read(_fileTransmitBuffer, 0, toSend - numberOfBytesRead);
 
                         int numberOfBytesSent = 0;
                         while (numberOfBytesSent < toSend)
-                            numberOfBytesSent += Send(_fileTransmitBuffer, toSend - numberOfBytesSent);
+                            numberOfBytesSent += Send(_fileTransmitBuffer, 0, toSend - numberOfBytesSent);
 
                         if (_currentFileTransmission.Remaining == 0)
                         {
                             // file upload completed
-                            Logger.Log(LogType.Debug, "Transmit completed.");
+                            Logger.Log(LogType.Normal, "Transmit completed.");
 
                             _currentFileTransmission.EndTransmit();
                             _currentFileTransmission.Dispose();
@@ -249,14 +273,183 @@ namespace Larry.Network
                         LogType.Debug,
                         "Request transmit {0}",
                         _currentFileTransmission.LocalPath);*/
-                        
-                    CreatePacket(PacketHeader.Store)
+
+                    CreatePacket(0, PacketHeader.Store)
                         .Write(_currentFileTransmission.RemotePath)
                         .Write(_currentFileTransmission.FileSize)
                         .Write(_currentFileTransmission.FileDateUtc.Ticks)
                         .Write((int)_currentFileTransmission.RemoteChecksum)
                         .Send();
                 }
+            }
+        }
+
+        public bool WaitForAuthorize(TimeSpan timeSpan)
+        {
+            using (var source = new CancellationTokenSource())
+            {
+                var end = DateTime.UtcNow + timeSpan;
+                while (!_isAuthorized &&
+                    DateTime.UtcNow < end)
+                {
+                    Process(source.Token);
+                    Thread.Sleep(100);
+                }
+            }
+
+            return _isAuthorized;
+        }
+
+        public void WaitForAuthorize()
+            => WaitForAuthorize(TimeSpan.FromDays(1));
+
+        private RequestData CreateRequest()
+        {
+            var request = new RequestData(this, Interlocked.Increment(ref _nextRequestId));
+            _requests[request.Id] = request;
+            return request;
+        }
+
+        public void RemoveRequest(RequestData request)
+            => _requests.Remove(request.Id);
+
+        private bool WaitForRequest(RequestData request, TimeSpan timeSpan)
+        {
+            var end = DateTime.UtcNow + timeSpan;
+            while (!request.IsFinished &&
+                DateTime.UtcNow < end)
+            {
+                Process(request.Token);
+                Thread.Sleep(100);
+            }
+
+            return request.IsFinished;
+        }
+
+        private void WaitForRequest(RequestData request)
+            => WaitForRequest(request, TimeSpan.FromDays(1));
+
+        public FileMetadata GetFileList(string directory, TimeSpan timeout)
+        {
+            using (var request = CreateRequest())
+            {
+                CreatePacket(request.Id, PacketHeader.RequestFileList)
+                    .Write(directory)
+                    .Send();
+
+                if (!WaitForRequest(request, timeout))
+                    throw new RequestTimeoutException();
+
+                return request.Data as FileMetadata;
+            }
+        }
+
+        public FileMetadata GetFileList(string directory)
+            => GetFileList(directory, TimeSpan.FromSeconds(5));
+
+        public void TransferFile(string localFilename, string remoteFilename, FileTransmitDirection direction, TimeSpan timeout)
+        {
+            if (direction == FileTransmitDirection.Send)
+            {
+                var fi = new FileInfo(localFilename);
+                var succeeded = false;
+
+                var crc = new Crc32().ComputeFile(fi.FullName);
+
+                using (var request = CreateRequest())
+                {
+                    CreatePacket(request.Id, PacketHeader.TransferFileRequest)
+                        .Write((byte)1) // send
+                        .Write(remoteFilename)
+                        .Write(fi.Length)
+                        .Write(fi.LastWriteTimeUtc.Ticks)
+                        .Write(crc)
+                        .Send();
+
+                    if (!WaitForRequest(request, timeout))
+                        throw new RequestTimeoutException();
+
+                    succeeded = (bool)request.Data;
+                }
+
+                if (!succeeded)
+                    throw new InvalidOperationException("Failed to request to transfer file...");
+
+                using (var stream = System.IO.File.Open(localFilename, FileMode.Open, FileAccess.Read, FileShare.Read))
+                {
+                    var pos = 0L;
+                    var buffer = new byte[65536];
+
+                    while (pos < fi.Length)
+                    {
+                        var read = stream.Read(buffer, 0, (int)Math.Min(buffer.Length, fi.Length - pos));
+                        pos += read;
+
+                        var sendPos = 0;
+                        while (sendPos < read)
+                        {
+                            var sent = Send(buffer, sendPos, read - sendPos);
+                            if (sent <= 0)
+                                throw new Exception("TransferFile Send error. Return value: " + sent);
+
+                            sendPos += sent;
+                        }
+                    }
+                }
+            }
+            else // receive
+            {
+                FileRequestResult result;
+
+                using (var request = CreateRequest())
+                {
+                    CreatePacket(request.Id, PacketHeader.TransferFileRequest)
+                        .Write((byte)0) // receive
+                        .Write(remoteFilename)
+                        .Send();
+
+                    if (!WaitForRequest(request, timeout))
+                        throw new RequestTimeoutException();
+
+                    result = (FileRequestResult)request.Data;
+                }
+
+                if (!result.Succeeded)
+                    throw new InvalidOperationException("Failed to request to receive file...");
+
+                // receive data...
+                _currentTransmitDirection = FileTransmitDirection.Receive;
+                _currentFileTransmission = FileTransmission.BeginReceive(
+                    localFilename,
+                    remoteFilename,
+                    result.LastWriteTimeUtc,
+                    result.Size,
+                    Path.GetTempFileName(),
+                    result.Crc);
+            }
+        }
+
+        public class RequestTimeoutException : Exception
+        {
+            public RequestTimeoutException() :
+                base("The request timed out.")
+            {
+            }
+        }
+
+        public class FileRequestResult
+        {
+            public bool Succeeded { get; set; }
+
+            public long Size { get; set; }
+
+            public DateTime LastWriteTimeUtc { get; set; }
+
+            public uint Crc { get; set; }
+
+            public FileRequestResult(bool succeeded)
+            {
+                Succeeded = succeeded;
             }
         }
     }

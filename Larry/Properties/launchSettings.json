@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "Larry": {
+      "commandName": "Project",
+      "commandLineArgs": "--script F:\\larry_script.txt"
+    }
+  }
+}

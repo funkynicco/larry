@@ -49,7 +49,7 @@ namespace Larry
                 System.IO.File.Delete(filename);
         }
 
-        public static void Log(byte[] data, int length)
+        public static void Log(byte[] data, int offset, int length)
         {
             var sb = new StringBuilder(1024);
             if (Interlocked.Increment(ref _count) > 1)
@@ -66,7 +66,7 @@ namespace Larry
                         sb.Append(' ');
                 }
 
-                sb.Append(data[i].ToString("x2"));
+                sb.Append(data[offset + i].ToString("x2"));
             }
 
             System.IO.File.AppendAllText(_textFileName, sb.ToString());
@@ -97,7 +97,7 @@ namespace Larry
                 }
 
                 stream.Position = dataIndexOffset;
-                stream.Write(data, 0, length);
+                stream.Write(data, offset, length);
                 indices.Add(new DataIndexEntry()
                 {
                     Offset = dataIndexOffset,

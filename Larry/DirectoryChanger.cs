@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 
 namespace Larry
 {
@@ -18,6 +19,9 @@ namespace Larry
             Change(directory);
         }
 
+        public void Dispose()
+            => Reset();
+
         public void Change(string directory)
         {
             Environment.CurrentDirectory = directory;
@@ -31,11 +35,6 @@ namespace Larry
                 Environment.CurrentDirectory = _oldDirectory;
                 _isChanged = false;
             }
-        }
-
-        public void Dispose()
-        {
-            Reset();
         }
     }
 }

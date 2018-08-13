@@ -2,6 +2,6 @@
 {
     public interface IClient
     {
-        int Send(byte[] data, int length);
+        int Send(byte[] data, int offset, int length);
     }
 }

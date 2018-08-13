@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Net.Sockets;
+using System.Threading;
 
 namespace Larry.Network
 {
@@ -11,7 +12,7 @@ namespace Larry.Network
         private string _disconnectMessage = null;
 
         protected string DisconnectMessage { get { return _disconnectMessage; } }
-        protected bool IsConnected { get { return _socket != null; } }
+        public bool IsConnected { get { return _socket != null; } }
 
         public void Dispose()
         {
@@ -59,7 +60,7 @@ namespace Larry.Network
             Close(null);
         }
 
-        public virtual void Process()
+        public virtual void Process(CancellationToken cancellationToken)
         {
             if (_socket != null)
             {
@@ -76,7 +77,7 @@ namespace Larry.Network
 
                     if (len > 0)
                     {
-                        OnData(_buffer, len);
+                        OnData(_buffer, 0, len, cancellationToken);
                     }
                     else
                     {
@@ -86,14 +87,12 @@ namespace Larry.Network
             }
         }
 
-        public int Send(byte[] data, int length)
-        {
-            return _socket.Send(data, length, SocketFlags.None);
-        }
+        public int Send(byte[] data, int offset, int length)
+            => _socket.Send(data, offset, length, SocketFlags.None);
 
-        public NetworkPacket CreatePacket<T>(T header) where T : IConvertible
+        public NetworkPacket CreatePacket<T>(int requestId, T header) where T : IConvertible
         {
-            return NetworkPacket.Create(this, header);
+            return NetworkPacket.Create(this, requestId, header);
         }
 
         // overridable
@@ -110,7 +109,7 @@ namespace Larry.Network
         {
         }
 
-        protected virtual void OnData(byte[] buffer, int length)
+        protected virtual void OnData(byte[] buffer, int offset, int length, CancellationToken cancellationToken)
         {
         }
     }
